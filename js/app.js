@@ -213,7 +213,7 @@ function displayResults({ route, distKm, signals, trafficLevel, hour, isWeekend,
   document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
 
   renderMap(route);
-  renderRouteStats(distKm, signals, current);
+  renderRouteStats(distKm, signals, current, roadType);
   renderCurrentAnalysis(trafficLevel, roadInfo, current, calcParams);
   renderChart(hourlyData, hour, bestHour, calcParams.fuelType);
   renderOptimalTime(hour, bestHour, hourlyData, calcParams.fuelType, distKm, isWeekend, now);
@@ -252,19 +252,18 @@ function renderMap(route) {
 }
 
 // ── Route stats ──────────────────────────────────────────────
-function renderRouteStats(distKm, signals, current) {
+function renderRouteStats(distKm, signals, current, roadType) {
   setText('statDistance', `${distKm.toFixed(1)} km`);
   setText('statETA', formatDuration(current.travelTimeMin));
   setText('statSignals', signals);
   setText('statStopTime', formatDuration(current.idleTimeSec / 60));
   const roadLabels = { highway: 'Expressway/NH', arterial: 'Arterial Road', urban: 'Urban Mixed', residential: 'Residential', service: 'Service Road' };
-  setText('statRoadType', roadLabels[state._roadType] || 'Urban Mixed');
+  setText('statRoadType', roadLabels[roadType] || 'Urban Mixed');
   setText('statSpeed', `${current.speed.toFixed(0)} km/h`);
 }
 
 // ── Current analysis panel ───────────────────────────────────
 function renderCurrentAnalysis(trafficLevel, roadInfo, current, calcParams) {
-  state._roadType = calcParams._roadType;
   const tl = trafficLabel(trafficLevel);
   const costNow = fuelCost(current.fuel, calcParams.fuelType);
   const co2Now  = co2(current.fuel, calcParams.fuelType);
@@ -467,7 +466,7 @@ function renderEcoSummary(current, calcParams, distKm, hourlyData, bestHour, cur
     signals: calcParams.signals, fuelType: 'petrol', vehicleType: '2wheeler',
     roadFuelMod: calcParams.roadFuelMod
   }).fuel;
-  const switchSave = current.vehicleType === '4wheeler' ? Math.max(0, current.fuel - twoWheelFuel) : 0;
+  const switchSave = calcParams.vehicleType === '4wheeler' ? Math.max(0, current.fuel - twoWheelFuel) : 0;
 
   document.getElementById('ecoSummary').innerHTML = `
     <div class="eco-grid">
