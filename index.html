@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Delhi NCR Fuel Planner - Smart Journey Optimizer</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⛽</text></svg>">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-content">
+      <div class="logo">
+        <span class="logo-icon">⛽</span>
+        <div>
+          <h1>Delhi NCR Fuel Planner</h1>
+          <p>Smart Journey Fuel Optimizer for Delhi NCR</p>
+        </div>
+      </div>
+      <div class="current-time" id="currentTime"></div>
+    </div>
+  </header>
+
+  <main class="app-main">
+    <section class="input-section card">
+      <h2 class="section-title">🗺️ Plan Your Journey</h2>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="startLocation">📍 Starting Point</label>
+          <div class="autocomplete-wrapper">
+            <input type="text" id="startLocation" placeholder="e.g. Connaught Place, Delhi" autocomplete="off">
+            <div class="autocomplete-dropdown" id="startDropdown"></div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="endLocation">🏁 Destination</label>
+          <div class="autocomplete-wrapper">
+            <input type="text" id="endLocation" placeholder="e.g. Cyber City, Gurugram" autocomplete="off">
+            <div class="autocomplete-dropdown" id="endDropdown"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>🚗 Vehicle Type</label>
+          <div class="toggle-group">
+            <button class="toggle-btn active" id="btn2W" onclick="selectVehicleType('2wheeler')">🛵 2-Wheeler</button>
+            <button class="toggle-btn" id="btn4W" onclick="selectVehicleType('4wheeler')">🚗 4-Wheeler</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="fuelType">⛽ Fuel Type</label>
+          <select id="fuelType" onchange="onFuelTypeChange()">
+            <option value="petrol">Petrol</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="vehicleBrand">🏷️ Vehicle Brand</label>
+          <select id="vehicleBrand" onchange="updateModels()">
+            <option value="">Select Brand</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="vehicleModel">🚘 Vehicle Model</label>
+          <select id="vehicleModel" onchange="updateMileage()">
+            <option value="">Select Model</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="mileage-display" id="mileageDisplay" style="display:none">
+        <span class="mileage-badge">📊 ARAI Mileage: <strong id="mileageValue">--</strong> kmpl</span>
+        <span class="mileage-note">Real-world mileage ~80% of ARAI figures</span>
+      </div>
+
+      <div id="alert-box" class="alert-box" style="display:none"></div>
+
+      <button class="analyze-btn" onclick="analyzeJourney()" id="analyzeBtn">
+        🔍 Analyze Journey &amp; Calculate Fuel
+      </button>
+    </section>
+
+    <!-- Loading overlay -->
+    <div class="loading-overlay" id="loadingOverlay" style="display:none">
+      <div class="loading-card">
+        <div class="spinner"></div>
+        <p class="loading-title">Analyzing your route…</p>
+        <div class="loading-steps">
+          <div class="loading-step" id="lstep1">📍 Fetching route from OpenStreetMap</div>
+          <div class="loading-step" id="lstep2">🚦 Counting traffic signals (Overpass API)</div>
+          <div class="loading-step" id="lstep3">📊 Processing historical traffic patterns</div>
+          <div class="loading-step" id="lstep4">⛽ Calculating fuel consumption scenarios</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Results -->
+    <div id="resultsSection" style="display:none">
+
+      <!-- Map -->
+      <section class="card">
+        <h2 class="section-title">🗺️ Route Map</h2>
+        <div id="map"></div>
+        <div class="route-stats">
+          <div class="stat-item">
+            <span class="stat-icon">📏</span>
+            <span class="stat-label">Distance</span>
+            <span class="stat-value" id="statDistance">--</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-icon">⏱️</span>
+            <span class="stat-label">ETA (Now)</span>
+            <span class="stat-value" id="statETA">--</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-icon">🚦</span>
+            <span class="stat-label">Traffic Signals</span>
+            <span class="stat-value" id="statSignals">--</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-icon">⏸️</span>
+            <span class="stat-label">Signal Stop Time</span>
+            <span class="stat-value" id="statStopTime">--</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-icon">🛣️</span>
+            <span class="stat-label">Road Type</span>
+            <span class="stat-value" id="statRoadType">--</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-icon">🏎️</span>
+            <span class="stat-label">Avg Speed</span>
+            <span class="stat-value" id="statSpeed">--</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Current Analysis -->
+      <section class="card">
+        <h2 class="section-title">⛽ Current Journey Analysis</h2>
+        <div class="conditions-grid">
+          <div class="condition-card">
+            <div class="condition-icon">🚦</div>
+            <div class="condition-label">Traffic Level</div>
+            <div class="condition-value" id="condTraffic">--</div>
+            <div class="condition-sub" id="condTrafficSub">--</div>
+          </div>
+          <div class="condition-card">
+            <div class="condition-icon">🛣️</div>
+            <div class="condition-label">Road Condition</div>
+            <div class="condition-value" id="condRoad">--</div>
+            <div class="condition-sub" id="condRoadSub">--</div>
+          </div>
+          <div class="condition-card">
+            <div class="condition-icon">⛽</div>
+            <div class="condition-label">Fuel Required</div>
+            <div class="condition-value highlight-green" id="condFuel">--</div>
+            <div class="condition-sub" id="condFuelSub">litres</div>
+          </div>
+          <div class="condition-card">
+            <div class="condition-icon">💰</div>
+            <div class="condition-label">Fuel Cost</div>
+            <div class="condition-value highlight-orange" id="condCost">--</div>
+            <div class="condition-sub" id="condCostSub">approx.</div>
+          </div>
+          <div class="condition-card">
+            <div class="condition-icon">🌿</div>
+            <div class="condition-label">CO₂ Emitted</div>
+            <div class="condition-value" id="condCO2">--</div>
+            <div class="condition-sub">kg of CO₂</div>
+          </div>
+          <div class="condition-card">
+            <div class="condition-icon">📉</div>
+            <div class="condition-label">Mileage Impact</div>
+            <div class="condition-value" id="condMileage">--</div>
+            <div class="condition-sub" id="condMileageSub">effective kmpl</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Traffic Chart -->
+      <section class="card">
+        <h2 class="section-title">📊 Fuel Cost by Departure Time (Today)</h2>
+        <p class="chart-subtitle">Based on Delhi NCR historical traffic patterns — lower bar = better time to travel</p>
+        <div class="chart-container">
+          <canvas id="trafficChart"></canvas>
+        </div>
+      </section>
+
+      <!-- Optimal Time -->
+      <section class="card optimal-card">
+        <h2 class="section-title">⏰ Optimal Departure Time Recommendation</h2>
+        <div class="optimal-grid">
+          <div class="optimal-box current-box">
+            <div class="opt-label">If You Leave Now</div>
+            <div class="opt-time" id="optNowTime">--</div>
+            <div class="opt-fuel" id="optNowFuel">-- L</div>
+            <div class="opt-cost" id="optNowCost">₹--</div>
+          </div>
+          <div class="vs-box">
+            <div class="vs-arrow">⇒</div>
+            <div class="savings-pill" id="savingsPill">SAVE<br>--</div>
+          </div>
+          <div class="optimal-box best-box">
+            <div class="opt-label">Best Time to Leave</div>
+            <div class="opt-time" id="optBestTime">--</div>
+            <div class="opt-fuel" id="optBestFuel">-- L</div>
+            <div class="opt-cost" id="optBestCost">₹--</div>
+          </div>
+        </div>
+        <div id="optimalDetails" class="optimal-details"></div>
+      </section>
+
+      <!-- Vehicle Comparison -->
+      <section class="card">
+        <h2 class="section-title">🔄 Vehicle Type Comparison</h2>
+        <p class="chart-subtitle">Fuel savings if you switch vehicle type for this journey</p>
+        <div class="comparison-table" id="vehicleCompTable"></div>
+      </section>
+
+      <!-- Public Transport -->
+      <section class="card">
+        <h2 class="section-title">🚌 Public Transport Alternative</h2>
+        <div id="publicTransportSection"></div>
+      </section>
+
+      <!-- Eco Summary -->
+      <section class="card eco-card">
+        <h2 class="section-title">🌿 Eco &amp; Savings Summary</h2>
+        <div id="ecoSummary"></div>
+      </section>
+
+    </div><!-- end resultsSection -->
+  </main>
+
+  <footer class="app-footer">
+    <p>Data: OpenStreetMap · OSRM Routing · Overpass API · Delhi NCR historical traffic patterns</p>
+    <p>Fuel prices and ARAI mileage figures are approximate — for planning purposes only</p>
+  </footer>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/calculator.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
