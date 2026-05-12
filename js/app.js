@@ -85,29 +85,37 @@ function updateMileage() {
 
 // ── Location autocomplete ────────────────────────────────────
 function initAutocomplete(inputId, dropdownId, onSelect) {
-  const input = document.getElementById(inputId);
+  const input    = document.getElementById(inputId);
   const dropdown = document.getElementById(dropdownId);
   let timer;
-
+  // Clear stored coords when user edits the field
   input.addEventListener('input', () => {
+    onSelect(null);
     clearTimeout(timer);
     const q = input.value.trim();
-    if (q.length < 3) { dropdown.style.display = 'none'; return; }
+    if (q.length < 2) { dropdown.style.display = 'none'; return; }
+
+    // Show a loading hint immediately so the user knows something is happening
+    dropdown.innerHTML = '<div class="autocomplete-item" style="color:#888;font-size:0.85rem">🔍 Searching…</div>';
+    dropdown.style.display = 'block';
+
     timer = setTimeout(async () => {
       try {
         const results = await geocode(q);
-        if (!results.length) { dropdown.style.display = 'none'; return; }
+        if (!results.length) {
+          dropdown.innerHTML = '<div class="autocomplete-item" style="color:#888;font-size:0.85rem">No results — try a landmark, area or city name</div>';
+          return;
+        }
         dropdown.innerHTML = results.map((r, i) => {
           const parts = r.display_name.split(',');
           return `<div class="autocomplete-item" data-i="${i}">
             <span class="item-icon">📍</span>
             <div>
-              <div class="item-name">${parts[0]}</div>
+              <div class="item-name">${parts[0].trim()}</div>
               <div class="item-detail">${parts.slice(1, 4).join(',').trim()}</div>
             </div>
           </div>`;
         }).join('');
-        dropdown.style.display = 'block';
         dropdown.querySelectorAll('.autocomplete-item').forEach(el => {
           el.addEventListener('click', () => {
             const r = results[+el.dataset.i];
@@ -116,8 +124,11 @@ function initAutocomplete(inputId, dropdownId, onSelect) {
             dropdown.style.display = 'none';
           });
         });
-      } catch { dropdown.style.display = 'none'; }
-    }, 320);
+      } catch (err) {
+        dropdown.innerHTML = `<div class="autocomplete-item" style="color:#c62828;font-size:0.85rem">⚠️ Search error — check connection</div>`;
+        console.error('Geocode error:', err);
+      }
+    }, 400);
   });
 
   document.addEventListener('click', e => {
@@ -517,6 +528,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   populateBrands();
 
-  initAutocomplete('startLocation', 'startDropdown', coords => { state.startCoords = coords; });
-  initAutocomplete('endLocation',   'endDropdown',   coords => { state.endCoords   = coords; });
+  initAutocomplete('startLocation', 'startDropdown', coords => { state.startCoords = coords || null; });
+  initAutocomplete('endLocation',   'endDropdown',   coords => { state.endCoords   = coords || null; });
 });

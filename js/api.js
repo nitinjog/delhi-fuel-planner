@@ -1,18 +1,37 @@
-// Nominatim geocoding — bounded to Delhi NCR region
+// Nominatim geocoding — prefer Delhi NCR region results
+// viewbox: left(min_lon), top(max_lat), right(max_lon), bottom(min_lat)
+// Covers Delhi, Noida, Ghaziabad, Gurgaon, Faridabad, Greater Noida
+const NCR_VIEWBOX = '76.50,29.10,77.90,28.10';
+
 async function geocode(query) {
+  // Don't append anything — countrycodes=in limits to India already.
+  // The viewbox boosts NCR results without hard-bounding so Gurgaon/Noida work fine.
   const params = new URLSearchParams({
-    q: query + ', Delhi NCR, India',
+    q: query,
     format: 'json',
-    limit: 6,
+    limit: 7,
     countrycodes: 'in',
-    viewbox: '76.80,29.05,77.85,28.20',
+    viewbox: NCR_VIEWBOX,
     bounded: 0,
     addressdetails: 1,
   });
   const url = `https://nominatim.openstreetmap.org/search?${params}`;
-  const res = await fetch(url, { headers: { 'Accept-Language': 'en', 'User-Agent': 'DelhiFuelPlanner/1.0' } });
-  if (!res.ok) throw new Error('Geocoding failed');
-  return res.json();
+  const res = await fetch(url, {
+    headers: {
+      'Accept-Language': 'en',
+      'User-Agent': 'DelhiFuelPlanner/1.0 (https://nitinjog.github.io/delhi-fuel-planner)',
+    },
+  });
+  if (!res.ok) throw new Error(`Geocoding HTTP ${res.status}`);
+  const results = await res.json();
+
+  // Nominatim returns global results; prefer ones inside the NCR bounding box
+  const inNcr = r => {
+    const lat = parseFloat(r.lat), lon = parseFloat(r.lon);
+    return lat >= 28.10 && lat <= 29.10 && lon >= 76.50 && lon <= 77.90;
+  };
+  const ncr = results.filter(inNcr);
+  return ncr.length ? ncr : results; // fall back to full list if nothing in NCR
 }
 
 // OSRM routing — returns { distance (m), duration (s), geometry (GeoJSON) }
