@@ -221,6 +221,34 @@ async function analyzeJourney() {
       route.roadInfo   = roadInfo;
       route.calcParams = calcParams;
       route.current    = calculateFuel(calcParams);
+
+      // ── Dual ETA ──────────────────────────────────────────
+      // We always compute TWO independent estimates and display them side-by-side:
+      //
+      //  1) "Historical model" (OSRM-based):
+      //     Uses the route's FREE-FLOW duration (road speed limits, no live traffic)
+      //     multiplied by our Delhi NCR traffic pattern factor.
+      //     Available for every route regardless of whether a Google key is set.
+      //
+      //  2) "Google Maps live traffic":
+      //     Uses Google's `duration_in_traffic` which reflects current congestion
+      //     as seen by Google Maps right now. Only available when a Google Maps
+      //     Directions API key is provided.
+      //
+      // Showing both lets users see:
+      //   • How bad traffic is TODAY vs the historical average
+      //   • Which estimate to trust more for this specific moment
+
+      const idleSecForEta = route.signals * 45 * trafficLevel;
+
+      // ETA 1 — Historical model (always available)
+      const modelTrafficMult = 1.0 + trafficLevel * 1.5;
+      route.etaModel = (route.duration * modelTrafficMult + idleSecForEta) / 60;
+
+      // ETA 2 — Google Maps live (only when Google Directions API was used)
+      route.etaGoogle = route.durationInTraffic != null
+        ? (route.durationInTraffic + idleSecForEta) / 60
+        : null;
     });
 
     // Step 3 — Traffic patterns
@@ -340,8 +368,20 @@ function renderRouteCards(routes, hour, isWeekend) {
   container.style.display = 'block';
 
   const cards = routes.map((r, i) => {
-    const tl  = trafficLabel(r.calcParams.trafficLevel);
+    const tl   = trafficLabel(r.calcParams.trafficLevel);
     const cost = fuelCost(r.current.fuel, r.calcParams.fuelType);
+
+    // Build the ETA display: always show model; add Google if available
+    const etaModelTxt  = formatDuration(r.etaModel);
+    const etaGoogleTxt = r.etaGoogle != null ? formatDuration(r.etaGoogle) : null;
+    const etaHtml = etaGoogleTxt
+      ? `<div class="rcm-eta-dual">
+           <span class="eta-src-model" title="Historical traffic model (OSRM)">⏱️ ${etaModelTxt} <em>model</em></span>
+           <span class="eta-sep">|</span>
+           <span class="eta-src-google" title="Google Maps live traffic">🗺️ ${etaGoogleTxt} <em>live</em></span>
+         </div>`
+      : `<div class="rcm-item">⏱️ <strong>${etaModelTxt}</strong></div>`;
+
     return `
       <div class="route-card ${i === 0 ? 'selected' : ''}" onclick="selectRoute(${i})">
         <div class="route-card-header">
@@ -351,7 +391,7 @@ function renderRouteCards(routes, hour, isWeekend) {
         </div>
         <div class="route-card-metrics">
           <div class="rcm-item">📏 <strong>${r.distKm.toFixed(1)}</strong> km</div>
-          <div class="rcm-item">⏱️ <strong>${formatDuration(r.current.travelTimeMin)}</strong></div>
+          ${etaHtml}
           <div class="rcm-item">⛽ <strong>${r.current.fuel.toFixed(2)}</strong> L</div>
           <div class="rcm-item">💰 <strong>₹${cost.toFixed(0)}</strong></div>
           <div class="rcm-item">🚦 <strong>${r.signals}</strong> signals</div>
@@ -367,11 +407,42 @@ function renderRouteCards(routes, hour, isWeekend) {
 function renderRouteStats(route, idx) {
   const roadLabels = { highway:'Expressway/NH', arterial:'Arterial Road', urban:'Urban Mixed', residential:'Residential' };
   setText('statDistance', `${route.distKm.toFixed(1)} km`);
-  setText('statETA',      formatDuration(route.current.travelTimeMin));
   setText('statSignals',  `${route.signals} (est.)`);
   setText('statStopTime', formatDuration(route.current.idleTimeSec / 60));
   setText('statRoadType', roadLabels[route.roadType] || 'Urban Mixed');
   setText('statSpeed',    `${route.current.speed.toFixed(0)} km/h`);
+
+  // ── ETA: always show model, optionally show Google live ──
+  setText('statETAModel', formatDuration(route.etaModel));
+
+  const googleBlock = document.getElementById('etaGoogleBlock');
+  if (route.etaGoogle != null && googleBlock) {
+    googleBlock.style.display = 'flex';
+    setText('statETAGoogle', formatDuration(route.etaGoogle));
+
+    // Comparison badge: positive = today is WORSE than historical average
+    const diffMin  = Math.round(route.etaGoogle - route.etaModel);
+    const absDiff  = Math.abs(diffMin);
+    const badge = document.getElementById('etaDiffBadge');
+    if (badge) {
+      badge.style.display = 'inline-block';
+      if (absDiff <= 2) {
+        badge.textContent = '≈ matches historical model';
+        badge.className   = 'eta-diff-badge neutral';
+      } else if (diffMin > 0) {
+        badge.textContent = `⚠ +${absDiff} min vs model — traffic is heavier than usual today`;
+        badge.className   = 'eta-diff-badge worse';
+      } else {
+        badge.textContent = `✅ −${absDiff} min vs model — traffic is lighter than usual today`;
+        badge.className   = 'eta-diff-badge better';
+      }
+    }
+  } else if (googleBlock) {
+    googleBlock.style.display = 'none';
+    const badge = document.getElementById('etaDiffBadge');
+    if (badge) badge.style.display = 'none';
+  }
+
   // Colour-coded route indicator
   const ind = document.getElementById('activeRouteIndicator');
   if (ind) { ind.style.background = ROUTE_COLORS[idx]; ind.textContent = `Route ${idx+1} — ${route.name}`; }

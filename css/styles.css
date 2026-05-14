@@ -837,6 +837,62 @@ body {
   font-size: 0.85rem;
 }
 
+/* ===== DUAL ETA DISPLAY ===== */
+.stat-item-eta { align-items: flex-start !important; }
+
+.eta-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+
+.eta-row {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.eta-label-google {
+  font-size: 0.72rem;
+  color: #34a853;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.eta-diff-badge {
+  display: inline-block;
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 8px;
+  margin-top: 2px;
+  text-align: center;
+  line-height: 1.4;
+}
+
+.eta-diff-badge.neutral  { background: #e8f5e9; color: var(--green); }
+.eta-diff-badge.worse    { background: #fff3e0; color: var(--orange); }
+.eta-diff-badge.better   { background: #e8f5e9; color: var(--green); }
+
+/* Route card dual ETA */
+.rcm-eta-dual {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255,255,255,0.8);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 3px 8px;
+  font-size: 0.8rem;
+}
+
+.eta-src-model  { color: var(--text);  }
+.eta-src-google { color: #34a853; font-weight: 600; }
+.eta-sep        { color: var(--border); font-size: 0.9rem; }
+.rcm-eta-dual em { font-size: 0.7rem; font-style: normal; opacity: 0.7; }
+
 /* ===== PUBLIC TRANSPORT LINKS ===== */
 .pt-link {
   display: inline-block;

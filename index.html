@@ -149,10 +149,20 @@
             <span class="stat-label">Distance</span>
             <span class="stat-value" id="statDistance">--</span>
           </div>
-          <div class="stat-item">
+          <!-- ETA — always shows historical model; Google live appears below when key is set -->
+          <div class="stat-item stat-item-eta">
             <span class="stat-icon">⏱️</span>
-            <span class="stat-label">ETA (with traffic)</span>
-            <span class="stat-value" id="statETA">--</span>
+            <div class="eta-stack">
+              <div class="eta-row">
+                <span class="stat-label">ETA (OSRM model)</span>
+                <span class="stat-value" id="statETAModel">--</span>
+              </div>
+              <div class="eta-row" id="etaGoogleBlock" style="display:none">
+                <span class="stat-label eta-label-google">ETA (Google live 🗺️)</span>
+                <span class="stat-value" id="statETAGoogle">--</span>
+              </div>
+              <span id="etaDiffBadge" class="eta-diff-badge" style="display:none"></span>
+            </div>
           </div>
           <div class="stat-item">
             <span class="stat-icon">🚦</span>
