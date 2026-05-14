@@ -15,7 +15,7 @@
         <span class="logo-icon">⛽</span>
         <div>
           <h1>Delhi NCR Fuel Planner</h1>
-          <p>Smart Journey Fuel Optimizer for Delhi NCR</p>
+          <p>Smart Journey Fuel Optimizer — Delhi · Gurugram · Noida</p>
         </div>
       </div>
       <div class="current-time" id="currentTime"></div>
@@ -23,6 +23,8 @@
   </header>
 
   <main class="app-main">
+
+    <!-- ── Input Form ─────────────────────────────────────────── -->
     <section class="input-section card">
       <h2 class="section-title">🗺️ Plan Your Journey</h2>
 
@@ -79,6 +81,25 @@
         <span class="mileage-note">Real-world mileage ~80% of ARAI figures</span>
       </div>
 
+      <!-- Google Maps API Settings (optional, key stored locally only) -->
+      <div class="gmaps-settings">
+        <button class="gmaps-toggle-btn" onclick="toggleGmapsSettings()">
+          ⚙️ Optional: Add Google Maps API key for enhanced accuracy
+        </button>
+        <div class="gmaps-settings-body" id="gmapsSettingsBody" style="display:none">
+          <div class="gmaps-info">
+            🗺️ Providing a Google Maps Directions API key enables real-time traffic data and more accurate ETAs.
+            Your key is stored <strong>only in your browser</strong> (localStorage) — never in this code or any server.<br>
+            <a href="https://console.cloud.google.com/apis/library/directions-backend.googleapis.com" target="_blank" rel="noopener">Get a free API key →</a>
+            (Enable "Directions API" · Restrict to your domain for safety)
+          </div>
+          <div class="gmaps-key-row">
+            <input type="password" id="gmapsKeyInput" placeholder="AIzaSy…">
+            <button onclick="saveGmapsKey()" class="btn-save-key">Save Key</button>
+          </div>
+        </div>
+      </div>
+
       <div id="alert-box" class="alert-box" style="display:none"></div>
 
       <button class="analyze-btn" onclick="analyzeJourney()" id="analyzeBtn">
@@ -86,27 +107,42 @@
       </button>
     </section>
 
-    <!-- Loading overlay -->
+    <!-- Loading -->
     <div class="loading-overlay" id="loadingOverlay" style="display:none">
       <div class="loading-card">
         <div class="spinner"></div>
         <p class="loading-title">Analyzing your route…</p>
         <div class="loading-steps">
-          <div class="loading-step" id="lstep1">📍 Fetching route from OpenStreetMap</div>
-          <div class="loading-step" id="lstep2">🚦 Counting traffic signals (Overpass API)</div>
-          <div class="loading-step" id="lstep3">📊 Processing historical traffic patterns</div>
-          <div class="loading-step" id="lstep4">⛽ Calculating fuel consumption scenarios</div>
+          <div class="loading-step" id="lstep1">📍 Fetching route alternatives (OSRM)</div>
+          <div class="loading-step" id="lstep2">🔍 Analysing road types &amp; estimating signals</div>
+          <div class="loading-step" id="lstep3">📊 Applying Delhi NCR traffic patterns</div>
+          <div class="loading-step" id="lstep4">⛽ Computing fuel scenarios for all routes</div>
         </div>
       </div>
     </div>
 
-    <!-- Results -->
+    <!-- ── Results ──────────────────────────────────────────── -->
     <div id="resultsSection" style="display:none">
+
+      <!-- Route cards (shown only when 2+ routes) -->
+      <section class="card" id="routeCardsSection" style="display:none">
+        <h2 class="section-title">🛣️ Available Routes — click to switch</h2>
+        <div id="routeCards" class="route-cards-grid"></div>
+      </section>
 
       <!-- Map -->
       <section class="card">
         <h2 class="section-title">🗺️ Route Map</h2>
         <div id="map"></div>
+
+        <!-- Active route indicator + Google Maps nav button -->
+        <div class="map-toolbar">
+          <span id="activeRouteIndicator" class="active-route-badge">Route 1</span>
+          <a id="googleMapsNavBtn" class="gmaps-nav-btn" href="#" target="_blank" rel="noopener" style="display:none">
+            🗺️ Navigate in Google Maps
+          </a>
+        </div>
+
         <div class="route-stats">
           <div class="stat-item">
             <span class="stat-icon">📏</span>
@@ -115,17 +151,17 @@
           </div>
           <div class="stat-item">
             <span class="stat-icon">⏱️</span>
-            <span class="stat-label">ETA (Now)</span>
+            <span class="stat-label">ETA (with traffic)</span>
             <span class="stat-value" id="statETA">--</span>
           </div>
           <div class="stat-item">
             <span class="stat-icon">🚦</span>
-            <span class="stat-label">Traffic Signals</span>
+            <span class="stat-label">Est. Signals</span>
             <span class="stat-value" id="statSignals">--</span>
           </div>
           <div class="stat-item">
             <span class="stat-icon">⏸️</span>
-            <span class="stat-label">Signal Stop Time</span>
+            <span class="stat-label">Signal Idle Time</span>
             <span class="stat-value" id="statStopTime">--</span>
           </div>
           <div class="stat-item">
@@ -139,11 +175,12 @@
             <span class="stat-value" id="statSpeed">--</span>
           </div>
         </div>
+        <p style="font-size:.72rem;color:#999;margin-top:6px" id="routeSourceLabel"></p>
       </section>
 
       <!-- Current Analysis -->
       <section class="card">
-        <h2 class="section-title">⛽ Current Journey Analysis</h2>
+        <h2 class="section-title">⛽ Current Journey Fuel Analysis</h2>
         <div class="conditions-grid">
           <div class="condition-card">
             <div class="condition-icon">🚦</div>
@@ -161,7 +198,7 @@
             <div class="condition-icon">⛽</div>
             <div class="condition-label">Fuel Required</div>
             <div class="condition-value highlight-green" id="condFuel">--</div>
-            <div class="condition-sub" id="condFuelSub">litres</div>
+            <div class="condition-sub">litres</div>
           </div>
           <div class="condition-card">
             <div class="condition-icon">💰</div>
@@ -173,21 +210,24 @@
             <div class="condition-icon">🌿</div>
             <div class="condition-label">CO₂ Emitted</div>
             <div class="condition-value" id="condCO2">--</div>
-            <div class="condition-sub">kg of CO₂</div>
+            <div class="condition-sub">kg CO₂</div>
           </div>
           <div class="condition-card">
             <div class="condition-icon">📉</div>
-            <div class="condition-label">Mileage Impact</div>
+            <div class="condition-label">Effective Mileage</div>
             <div class="condition-value" id="condMileage">--</div>
-            <div class="condition-sub" id="condMileageSub">effective kmpl</div>
+            <div class="condition-sub" id="condMileageSub">kmpl</div>
           </div>
         </div>
       </section>
 
       <!-- Traffic Chart -->
       <section class="card">
-        <h2 class="section-title">📊 Fuel Cost by Departure Time (Today)</h2>
-        <p class="chart-subtitle">Based on Delhi NCR historical traffic patterns — lower bar = better time to travel</p>
+        <h2 class="section-title">📊 Fuel Cost — Next 6 Hours</h2>
+        <p class="chart-subtitle">
+          🟠 Now &nbsp;|&nbsp; 🟢 Best in 3-hr window &nbsp;|&nbsp; 🔵 Later hours &nbsp;—&nbsp;
+          lower bar = better time to leave
+        </p>
         <div class="chart-container">
           <canvas id="trafficChart"></canvas>
         </div>
@@ -195,7 +235,7 @@
 
       <!-- Optimal Time -->
       <section class="card optimal-card">
-        <h2 class="section-title">⏰ Optimal Departure Time Recommendation</h2>
+        <h2 class="section-title">⏰ Best Departure Time (Next 3 Hours)</h2>
         <div class="optimal-grid">
           <div class="optimal-box current-box">
             <div class="opt-label">If You Leave Now</div>
@@ -208,7 +248,7 @@
             <div class="savings-pill" id="savingsPill">SAVE<br>--</div>
           </div>
           <div class="optimal-box best-box">
-            <div class="opt-label">Best Time to Leave</div>
+            <div class="opt-label">Best in Next 3 Hours</div>
             <div class="opt-time" id="optBestTime">--</div>
             <div class="opt-fuel" id="optBestFuel">-- L</div>
             <div class="opt-cost" id="optBestCost">₹--</div>
@@ -220,13 +260,13 @@
       <!-- Vehicle Comparison -->
       <section class="card">
         <h2 class="section-title">🔄 Vehicle Type Comparison</h2>
-        <p class="chart-subtitle">Fuel savings if you switch vehicle type for this journey</p>
+        <p class="chart-subtitle">Fuel &amp; cost difference if you switch vehicle for this journey</p>
         <div class="comparison-table" id="vehicleCompTable"></div>
       </section>
 
       <!-- Public Transport -->
       <section class="card">
-        <h2 class="section-title">🚌 Public Transport Alternative</h2>
+        <h2 class="section-title">🚌 Public Transport Alternatives</h2>
         <div id="publicTransportSection"></div>
       </section>
 
@@ -236,12 +276,12 @@
         <div id="ecoSummary"></div>
       </section>
 
-    </div><!-- end resultsSection -->
+    </div><!-- /resultsSection -->
   </main>
 
   <footer class="app-footer">
-    <p>Data: OpenStreetMap · OSRM Routing · Overpass API · Delhi NCR historical traffic patterns</p>
-    <p>Fuel prices and ARAI mileage figures are approximate — for planning purposes only</p>
+    <p>Routing: OSRM / OpenStreetMap (free) · Optional: Google Maps Directions API · Traffic: Delhi NCR historical patterns</p>
+    <p>Fuel prices, ARAI mileage &amp; signal estimates are approximate — for journey planning only · Not affiliated with any transport authority</p>
   </footer>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
